@@ -40,11 +40,17 @@ var cheerio_1 = require("cheerio");
 var fetch_1 = require("../../libs/fetch");
 var filterInputs_1 = require("../../libs/filterInputs");
 var novelStatus_1 = require("../../libs/novelStatus");
+
 var SuduGu = /** @class */ (function () {
     function SuduGu() {
         this.fetchOptions = {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Linux; U; Android 14; zh-cn; M2102K1AC Build/UKQ1.231207.002) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/109.0.5414.118 Mobile Safari/537.36 MQQBrowser/10.1.0',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,us;q=0.5',
+                'Referer': 'https://www.sudugu.com/',
+                'DNT': '1',
+                'Upgrade-Insecure-Requests': '1',
             },
         };
         this.id = 'sudugu';
@@ -55,7 +61,7 @@ var SuduGu = /** @class */ (function () {
         this.filters = {
             category: {
                 label: '分类',
-                value: 'none',
+                value: 'wanjie', // 恢复默认值为wanjie，符合JSON
                 options: [
                     { label: '完结小说', value: 'wanjie' },
                     { label: '最新更新', value: 'zuixin' },
@@ -88,29 +94,25 @@ var SuduGu = /** @class */ (function () {
                 switch (_c.label) {
                     case 0:
                         url = '';
-                        if (filters && filters.category.value !== 'none') {
-                            url = "".concat(this.site, "/").concat(filters.category.value, "/").concat(pageNo, ".html");
-                        }
-                        else if (showLatestNovels) {
+                        if (showLatestNovels) {
                             url = "".concat(this.site, "/zuixin/").concat(pageNo, ".html");
-                        }
-                        else {
+                        } else if (filters && filters.category.value !== 'none') {
+                            url = "".concat(this.site, "/").concat(filters.category.value, "/").concat(pageNo, ".html");
+                        } else {
                             url = "".concat(this.site, "/wanjie/").concat(pageNo, ".html");
                         }
                         return [4 /*yield*/, (0, fetch_1.fetchText)(url, this.fetchOptions)];
                     case 1:
                         body = _c.sent();
-                        if (!body)
-                            throw Error('无法获取小说列表，请检查网络');
+                        if (!body) throw Error('无法获取小说列表，请检查网络');
                         $ = (0, cheerio_1.load)(body);
                         novels = [];
                         $('.item').each(function (_, el) {
                             var _a, _b;
                             var novelName = $(el).find('h3 a').text().trim();
                             var novelCover = $(el).find('a img').attr('src');
-                            var path = (_b = (_a = $(el).find('a').attr('href')) === null || _a === void 0 ? void 0 : _a.replace(_this.site, '')) !== null && _b !== void 0 ? _b : '';
-                            if (!novelName || !path)
-                                return;
+                            var path = (_b = (_a = $(el).find('a').first().attr('href')) === null || _a === void 0 ? void 0 : _a.replace(_this.site, '')) !== null && _b !== void 0 ? _b : '';
+                            if (!novelName || !path) return;
                             novels.push({
                                 name: novelName,
                                 cover: novelCover,
@@ -124,7 +126,7 @@ var SuduGu = /** @class */ (function () {
     };
     SuduGu.prototype.parseNovel = function (novelPath) {
         return __awaiter(this, void 0, void 0, function () {
-            var url, body, $, novel, tocUrl, chapters, hasMore, nextToc, _loop_1, this_1;
+            var url, body, $, novel, chapters, hasMore, nextToc, _loop_1, this_1;
             var _this = this;
             return __generator(this, function (_a) {
                 switch (_a.label) {
@@ -133,8 +135,7 @@ var SuduGu = /** @class */ (function () {
                         return [4 /*yield*/, (0, fetch_1.fetchText)(url, this.fetchOptions)];
                     case 1:
                         body = _a.sent();
-                        if (!body)
-                            throw Error('无法获取小说内容，请检查网络');
+                        if (!body) throw Error('无法获取小说内容，请检查网络');
                         $ = (0, cheerio_1.load)(body);
                         novel = {
                             path: novelPath,
@@ -142,19 +143,14 @@ var SuduGu = /** @class */ (function () {
                             name: $('.itemtxt h1 a').text().trim(),
                             cover: $('.item a img').attr('src'),
                             summary: $('.des p').text().trim(),
-                            author: $('.itemtxt p').eq(1).text().replace('作者：', '').trim(),
+                            author: $('.itemtxt p').eq(1).find('a').attr('title') || $('.itemtxt p').eq(1).text().replace('作者：', '').trim(),
                             artist: undefined,
-                            status: $('.itemtxt p').eq(0).text().includes('连载')
-                                ? novelStatus_1.NovelStatus.Ongoing
-                                : novelStatus_1.NovelStatus.Completed,
+                            status: $('.itemtxt').text().includes('连载') ? novelStatus_1.NovelStatus.Ongoing : novelStatus_1.NovelStatus.Completed,
                             genres: $('.itemtxt p').eq(0).find('span').text().trim(),
                         };
-                        tocUrl = $('.itemtxt ul li a').attr('href') || novelPath.replace('.html', '/');
-                        if (!tocUrl.startsWith('http'))
-                            tocUrl = this.site + tocUrl;
                         chapters = [];
                         hasMore = true;
-                        nextToc = tocUrl;
+                        nextToc = url; // 从小说页面开始
                         _loop_1 = function () {
                             var tocBody, tocCheerio, nextBtn;
                             return __generator(this, function (_b) {
@@ -162,25 +158,46 @@ var SuduGu = /** @class */ (function () {
                                     case 0: return [4 /*yield*/, (0, fetch_1.fetchText)(nextToc, this_1.fetchOptions)];
                                     case 1:
                                         tocBody = _b.sent();
+                                        if (!tocBody) throw Error('无法获取章节列表，请检查网络');
                                         tocCheerio = (0, cheerio_1.load)(tocBody);
                                         tocCheerio('#list ul li').each(function (_, el) {
                                             var chapterName = tocCheerio(el).find('a').text().trim();
                                             var chapterUrl = tocCheerio(el).find('a').attr('href');
-                                            if (!chapterUrl)
-                                                return;
-                                            if (!chapterUrl.startsWith('http'))
-                                                chapterUrl = _this.site + chapterUrl;
-                                            // 章节名过滤与标准化可选（略）
-                                            chapters.push({
-                                                name: chapterName,
-                                                path: chapterUrl.replace(_this.site, ''),
-                                            });
+                                            if (!chapterUrl) return;
+                                            if (!/^[ \u3000]{0,4}(序章|楔子|正文|终章|尾声|第\s{0,4}[\d〇零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]+?\s{0,4}(章|节|集|部|篇)|[Cc]hapter\s{0,4}\d+|[Ss]ection\s{0,4}\d+|[Pp]art\s{0,4}\d+|\d+[、．.\s]|\d+[^\s\d]{2,4})/.test(chapterName)) {
+                                                return; // 过滤无效章节
+                                            }
+                                            chapterName = chapterName
+                                                .replace(/••/g, '')
+                                                .replace(/[【〔〖［『「《]\d+[】〕〗］』」》]/g, '')
+                                                .replace(/^(\d+)[.．、,，]*第/, '第')
+                                                .replace(/^(正文|VIP章节|最新章节)?(\s+|_)?/, '')
+                                                .replace(/[\(\{（｛【〔［].*?(求含理更谢乐发推票盟补加字Kk\/).*/, '')
+                                                .replace(/^(\d+)[、．.，,]第.+章/, '第$1章')
+                                                .replace(/^(\d+)、\d+、/, '第$1章 ')
+                                                .replace(/^(\d+)、\d+/, '第$1章')
+                                                .replace(/^(第.+章)\s?\d+/, '$1')
+                                                .replace(/^(\d+)、/, '第$1章 ')
+                                                .replace(/^(第.+章)\s?第.+章/, '$1')
+                                                .replace(/第\s?(.+)\s?章/, '第$1章')
+                                                .replace(/.*(?:chapter|Chapter|section|Section|part|Part)\s*(\d+)\s*/, '第$1章 ')
+                                                .replace(/[\(\（【〔［『「《｛{].*$/, '')
+                                                .replace(/[\[。]/g, '')
+                                                .replace(/(章)([^\s]+)(\s·)/, '$1 $2$3')
+                                                .trim();
+                                            if (!chapterUrl.startsWith('http')) chapterUrl = _this.site + chapterUrl;
+                                            var relativeChapterUrl = chapterUrl.replace(_this.site, '');
+                                            if (!chapters.some(function (chap) { return chap.path === relativeChapterUrl; })) {
+                                                chapters.push({
+                                                    name: chapterName,
+                                                    path: relativeChapterUrl,
+                                                });
+                                            }
                                         });
                                         nextBtn = tocCheerio('a:contains("下一页")').attr('href');
-                                        if (nextBtn && nextBtn !== '#' && nextBtn !== nextToc) {
-                                            nextToc = nextBtn.startsWith('http') ? nextBtn : this_1.site + nextBtn;
-                                        }
-                                        else {
+                                        if (nextBtn && nextBtn !== 'javascript:void(0);' && nextBtn !== nextToc) {
+                                            nextToc = nextBtn.startsWith('http') ? nextBtn : _this.site + nextBtn;
+                                        } else {
                                             hasMore = false;
                                         }
                                         return [2 /*return*/];
@@ -204,23 +221,50 @@ var SuduGu = /** @class */ (function () {
     };
     SuduGu.prototype.parseChapter = function (chapterPath) {
         return __awaiter(this, void 0, void 0, function () {
-            var url, body, $, content;
+            var url, content, hasMoreContent, currentUrl, _loop_2, this_2;
+            var _this = this;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
                         url = this.site + chapterPath;
-                        return [4 /*yield*/, (0, fetch_1.fetchText)(url, this.fetchOptions)];
+                        content = '';
+                        hasMoreContent = true;
+                        currentUrl = url;
+                        _loop_2 = function () {
+                            var body, $, pageText, nextContentLink;
+                            return __generator(this, function (_b) {
+                                switch (_b.label) {
+                                    case 0: return [4 /*yield*/, (0, fetch_1.fetchText)(currentUrl, this_2.fetchOptions)];
+                                    case 1:
+                                        body = _b.sent();
+                                        if (!body) throw Error('无法获取章节内容，请检查网络');
+                                        $ = (0, cheerio_1.load)(body);
+                                        pageText = $('.con p')
+                                            .map(function (_, el) { return $(el).text().trim(); })
+                                            .get()
+                                            .filter(function (line) { return line !== ''; })
+                                            .map(function (line) { return "<p>".concat(line, "</p>"); })
+                                            .join('\n');
+                                        content += pageText;
+                                        nextContentLink = $('a:contains("下一页")').attr('href');
+                                        if (nextContentLink && nextContentLink !== 'javascript:void(0);' && nextContentLink !== currentUrl) {
+                                            currentUrl = nextContentLink.startsWith('http') ? nextContentLink : _this.site + nextContentLink;
+                                        } else {
+                                            hasMoreContent = false;
+                                        }
+                                        return [2 /*return*/];
+                                }
+                            });
+                        };
+                        this_2 = this;
+                        _a.label = 1;
                     case 1:
-                        body = _a.sent();
-                        if (!body)
-                            throw Error('无法获取章节内容，请检查网络');
-                        $ = (0, cheerio_1.load)(body);
-                        content = $('.con p')
-                            .map(function (_, el) { return $(el).text().trim(); })
-                            .get()
-                            .filter(function (line) { return line !== ''; })
-                            .map(function (line) { return "<p>".concat(line, "</p>"); })
-                            .join('\n');
+                        if (!hasMoreContent) return [3 /*break*/, 3];
+                        return [5 /*yield**/, _loop_2()];
+                    case 2:
+                        _a.sent();
+                        return [3 /*break*/, 1];
+                    case 3:
                         return [2 /*return*/, content];
                 }
             });
@@ -233,23 +277,20 @@ var SuduGu = /** @class */ (function () {
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
-                        if (pageNo > 1)
-                            return [2 /*return*/, []];
+                        if (pageNo > 1) return [2 /*return*/, []];
                         searchUrl = "".concat(this.site, "/i/sor.aspx?key=").concat(encodeURIComponent(searchTerm));
                         return [4 /*yield*/, (0, fetch_1.fetchText)(searchUrl, this.fetchOptions)];
                     case 1:
                         body = _a.sent();
-                        if (!body)
-                            throw Error('无法获取搜索结果，请检查网络');
+                        if (!body) throw Error('无法获取搜索结果，请检查网络');
                         $ = (0, cheerio_1.load)(body);
                         novels = [];
                         $('.item').each(function (_, el) {
                             var _a, _b;
                             var novelName = $(el).find('h3 a').text().trim();
                             var novelCover = $(el).find('a img').attr('src');
-                            var path = (_b = (_a = $(el).find('a').attr('href')) === null || _a === void 0 ? void 0 : _a.replace(_this.site, '')) !== null && _b !== void 0 ? _b : '';
-                            if (!novelName || !path)
-                                return;
+                            var path = (_b = (_a = $(el).find('a').first().attr('href')) === null || _a === void 0 ? void 0 : _a.replace(_this.site, '')) !== null && _b !== void 0 ? _b : '';
+                            if (!novelName || !path) return;
                             novels.push({
                                 name: novelName,
                                 cover: novelCover,
