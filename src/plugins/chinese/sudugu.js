@@ -59,14 +59,18 @@ var SuduGu = /** @class */ (function () {
         this.fetchOptions = {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Linux; Android 14; M2102K1AC) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.5414.118 Mobile Safari/537.36',
-                'Referer': 'https://www.sudugu.com/'
+                'Referer': 'https://www.sudugu.com/',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                'Accept-Language': 'zh-CN,zh;q=0.9'
             },
+            credentials: 'include',
+            timeout: 30000
         };
         this.id = 'sudugu';
         this.name = '速读谷';
         this.icon = 'src/cn/sudugu/icon.png';
         this.site = 'https://www.sudugu.com';
-        this.version = '0.2.4';
+        this.version = '0.2.5';
         this.filters = {
             category: {
                 label: '分类',
@@ -110,7 +114,7 @@ var SuduGu = /** @class */ (function () {
                     case 1:
                         body = _c.sent();
                         if (!body) {
-                            console.error('Failed to fetch popular novels, empty response');
+                            console.error('Failed to fetch popular novels, empty response for:', url);
                             throw Error('无法获取小说列表，请检查网络');
                         }
                         $ = (0, cheerio_1.load)(body);
@@ -154,7 +158,7 @@ var SuduGu = /** @class */ (function () {
                     case 1:
                         body = _a.sent();
                         if (!body) {
-                            console.error('Failed to fetch novel, empty response');
+                            console.error('Failed to fetch novel, empty response for:', url);
                             throw Error('无法获取小说内容，请检查网络');
                         }
                         $ = (0, cheerio_1.load)(body);
@@ -233,17 +237,20 @@ var SuduGu = /** @class */ (function () {
                                     case 1:
                                         body = _b.sent();
                                         if (!body) {
-                                            console.error('Failed to fetch chapter, empty response');
+                                            console.error('Failed to fetch chapter, empty response for:', currentUrl);
                                             hasMoreContent = false;
                                             return [2 /*return*/];
                                         }
                                         $ = (0, cheerio_1.load)(body);
-                                        pageText = $('.con p')
+                                        console.log('Raw content length:', $('.con p').length, 'elements');
+                                        pageText = $('.con p').length ? $('.con p') : $('.content p');
+                                        pageText = pageText
                                             .map(function (_, el) { return $(el).text().trim(); })
                                             .get()
-                                            .filter(function (line) { return line !== '' && !line.includes('速读谷'); })
+                                            .filter(function (line) { return line !== ''; })
                                             .map(function (line) { return "<p>".concat(line, "</p>"); })
                                             .join('\n');
+                                        console.log('Filtered content length:', pageText.length);
                                         content += pageText ? pageText + '\n' : '';
                                         nextContentLink = $('a:contains("下一页")').attr('href');
                                         console.log('Next content URL:', nextContentLink);
@@ -252,7 +259,7 @@ var SuduGu = /** @class */ (function () {
                                                 currentUrl = nextContentLink.startsWith('http') ? nextContentLink : _this.site + nextContentLink;
                                                 pageCount++;
                                             } catch (e) {
-                                                console.warn('Invalid next content link found:', nextContentLink);
+                                                console.warn('Invalid next content link found:', nextContentLink, e);
                                                 hasMoreContent = false;
                                             }
                                         } else {
@@ -274,7 +281,7 @@ var SuduGu = /** @class */ (function () {
                         if (!content) {
                             console.warn('No content found for chapter:', chapterPath);
                         }
-                        console.log('Chapter content length:', content.length);
+                        console.log('Final chapter content length:', content.length);
                         return [2 /*return*/, content || '<p>章节内容为空</p>'];
                 }
             });
@@ -297,7 +304,7 @@ var SuduGu = /** @class */ (function () {
                     case 1:
                         body = _a.sent();
                         if (!body) {
-                            console.error('Failed to fetch search results, empty response');
+                            console.error('Failed to fetch search results, empty response for:', searchUrl);
                             throw Error('无法获取搜索结果，请检查网络');
                         }
                         $ = (0, cheerio_1.load)(body);
