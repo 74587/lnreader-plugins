@@ -1,0 +1,11 @@
+[
+  {
+    "id": "69shuba",
+    "name": "69主站",
+    "site": "https://69shuba.cx",
+    "lang": "中文, 汉语, 漢語",
+    "version": "0.0.1",
+    "url": "https://raw.githubusercontent.com/74587/lnreader-plugins/refs/heads/master/src/plugins/chinese/69shuba.js",
+    "iconUrl": "https://69shuba.cx/favicon.ico"
+  }
+]
