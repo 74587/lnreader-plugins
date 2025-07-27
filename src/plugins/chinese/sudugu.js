@@ -70,7 +70,7 @@ var SuduGu = /** @class */ (function () {
         this.name = '速读谷';
         this.icon = 'src/cn/sudugu/icon.png';
         this.site = 'https://www.sudugu.com';
-        this.version = '0.2.7';
+        this.version = '0.2.5';
         this.filters = {
             category: {
                 label: '分类',
@@ -147,18 +147,21 @@ var SuduGu = /** @class */ (function () {
     };
     SuduGu.prototype.parseNovel = function (novelPath) {
         return __awaiter(this, void 0, void 0, function () {
-            var baseUrl, chapters, novel, currentPageUrl, hasMorePages, pageCount, maxPages, _loop_4, this_4;
+            var url, body, $, novel, chapters;
             var _this = this;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
-                        baseUrl = novelPath.endsWith('/#dir') ? novelPath : "".concat(novelPath, "/#dir");
-                        baseUrl = baseUrl.startsWith('http') ? baseUrl : "".concat(this.site, baseUrl);
-                        console.log('Fetching novel base URL:', baseUrl);
-                        chapters = [];
-                        return [4 /*yield*/, (0, fetch_1.fetchText)(baseUrl, this.fetchOptions)];
+                        url = this.site + novelPath;
+                        console.log('Fetching novel:', url);
+                        return [4 /*yield*/, (0, fetch_1.fetchText)(url, this.fetchOptions)];
                     case 1:
-                        _a.sent();
+                        body = _a.sent();
+                        if (!body) {
+                            console.error('Failed to fetch novel, empty response for:', url);
+                            throw Error('无法获取小说内容，请检查网络');
+                        }
+                        $ = (0, cheerio_1.load)(body);
                         novel = {
                             path: novelPath,
                             chapters: [],
@@ -170,102 +173,36 @@ var SuduGu = /** @class */ (function () {
                             status: $('.itemtxt p').eq(0).text().includes('连载') ? novelStatus_1.NovelStatus.Ongoing : novelStatus_1.NovelStatus.Completed,
                             genres: $('.itemtxt p').eq(0).find('span').eq(1).text().trim() || '未知分类',
                         };
-                        console.log('Novel summary:', novel.summary);
-                        currentPageUrl = baseUrl;
-                        hasMorePages = true;
-                        pageCount = 0;
-                        maxPages = 100;
-                        _loop_4 = function () {
-                            var pageBody, $page, pageChapters, nextPageLink, novelId, nextPageNum;
-                            return __generator(this, function (_b) {
-                                switch (_b.label) {
-                                    case 0:
-                                        if (pageCount >= maxPages) {
-                                            console.warn('Reached max novel pages:', maxPages);
-                                            hasMorePages = false;
-                                            return [2 /*return*/];
-                                        }
-                                        console.log('Fetching novel page:', currentPageUrl);
-                                        return [4 /*yield*/, (0, fetch_1.fetchText)(currentPageUrl, this.fetchOptions)];
-                                    case 1:
-                                        pageBody = _b.sent();
-                                        if (!pageBody) {
-                                            console.error('Failed to fetch novel page, empty response for:', currentPageUrl);
-                                            hasMorePages = false;
-                                            return [2 /*return*/];
-                                        }
-                                        $page = (0, cheerio_1.load)(pageBody);
-                                        pageChapters = [];
-                                        $page('#list ul li').each(function (_, el) {
-                                            try {
-                                                var chapterName = $page(el).find('a').text().trim();
-                                                var chapterUrl = $page(el).find('a').attr('href');
-                                                if (!chapterUrl || !chapterName) {
-                                                    console.warn('Skipping invalid chapter:', { name: chapterName, url: chapterUrl });
-                                                    return;
-                                                }
-                                                chapterName = chapterName
-                                                    .replace(/••/g, '')
-                                                    .replace(/[【〔〖［『「《]\d+[】〕〗］』」》]/g, '')
-                                                    .replace(/[\(\{（｛【〔［].*?(求含理更谢乐发推票盟补加字Kk\/).*/, '')
-                                                    .replace(/[\[\(\（【〔［『「《｛{].*$/, '')
-                                                    .replace(/[。]/g, '')
-                                                    .replace(/请假.*/, '')
-                                                    .replace(/感言.*/, '')
-                                                    .replace(/总结.*/, '')
-                                                    .trim();
-                                                if (!chapterUrl.startsWith('http')) chapterUrl = _this.site + chapterUrl;
-                                                var relativeChapterUrl = chapterUrl.replace(_this.site, '');
-                                                if (!chapters.some(function (chap) { return chap.path === relativeChapterUrl; })) {
-                                                    pageChapters.push({
-                                                        name: chapterName,
-                                                        path: relativeChapterUrl,
-                                                    });
-                                                }
-                                            } catch (e) {
-                                                console.error('Error parsing chapter:', e);
-                                            }
-                                        });
-                                        console.log('Parsed chapters from page', currentPageUrl, ':', pageChapters.length);
-                                        chapters = chapters.concat(pageChapters);
-                                        nextPageLink = $page('.pages a:contains("下一页")').attr('href');
-                                        console.log('Next page link:', nextPageLink);
-                                        if (nextPageLink && nextPageLink !== 'javascript:void(0);' && nextPageLink !== currentPageUrl) {
-                                            try {
-                                                if (nextPageLink.startsWith('http')) {
-                                                    currentPageUrl = nextPageLink;
-                                                } else {
-                                                    novelId = novelPath.match(/\/(\d+)\/?/)[1];
-                                                    if (nextPageLink.match(/p-\d+\.html#dir/)) {
-                                                        currentPageUrl = "".concat(_this.site, "/").concat(novelId, "/").concat(nextPageLink);
-                                                    } else {
-                                                        nextPageNum = pageCount + 2;
-                                                        currentPageUrl = "".concat(_this.site, "/").concat(novelId, "/p-").concat(nextPageNum, ".html#dir");
-                                                    }
-                                                }
-                                                pageCount++;
-                                            } catch (e) {
-                                                console.warn('Invalid next page link found:', nextPageLink, e);
-                                                hasMorePages = false;
-                                            }
-                                        } else {
-                                            hasMorePages = false;
-                                        }
-                                        return [2 /*return*/];
+                        chapters = [];
+                        $('#list ul li').each(function (_, el) {
+                            try {
+                                var chapterName = $(el).find('a').text().trim();
+                                var chapterUrl = $(el).find('a').attr('href');
+                                if (!chapterUrl || !chapterName) {
+                                    console.warn('Skipping invalid chapter:', chapterName);
+                                    return;
                                 }
-                            });
-                        };
-                        this_4 = this;
-                        _a.label = 2;
-                    case 2:
-                        if (!hasMorePages) return [3 /*break*/, 4];
-                        return [5 /*yield**/, _loop_4()];
-                    case 3:
-                        _a.sent();
-                        return [3 /*break*/, 2];
-                    case 4:
-                        novel.chapters = chapters.filter(function (chap) { return chap.name && !chap.name.includes('请假') && !chap.name.includes('感言') && !chap.name.includes('总结'); });
-                        console.log('Total parsed chapters:', novel.chapters.length);
+                                chapterName = chapterName
+                                    .replace(/••/g, '')
+                                    .replace(/[【〔〖［『「《]\d+[】〕〗］』」》]/g, '')
+                                    .replace(/[\(\{（｛【〔［].*?(求含理更谢乐发推票盟补加字Kk\/).*/, '')
+                                    .replace(/[\[\(\（【〔［『「《｛{].*$/, '')
+                                    .replace(/[。]/g, '')
+                                    .trim();
+                                if (!chapterUrl.startsWith('http')) chapterUrl = _this.site + chapterUrl;
+                                var relativeChapterUrl = chapterUrl.replace(_this.site, '');
+                                if (!chapters.some(function (chap) { return chap.path === relativeChapterUrl; })) {
+                                    chapters.push({
+                                        name: chapterName,
+                                        path: relativeChapterUrl,
+                                    });
+                                }
+                            } catch (e) {
+                                console.error('Error parsing chapter:', e);
+                            }
+                        });
+                        novel.chapters = chapters;
+                        console.log('Parsed chapters:', chapters.length);
                         return [2 /*return*/, novel];
                 }
             });
@@ -273,7 +210,7 @@ var SuduGu = /** @class */ (function () {
     };
     SuduGu.prototype.parseChapter = function (chapterPath) {
         return __awaiter(this, void 0, void 0, function () {
-            var url, content, hasMoreContent, currentUrl, maxPages, pageCount, _loop_5, this_5;
+            var url, content, hasMoreContent, currentUrl, maxPages, pageCount, _loop_1, this_1;
             var _this = this;
             return __generator(this, function (_a) {
                 switch (_a.label) {
@@ -285,7 +222,7 @@ var SuduGu = /** @class */ (function () {
                         currentUrl = url;
                         maxPages = 100;
                         pageCount = 0;
-                        _loop_5 = function () {
+                        _loop_1 = function () {
                             var body, $, pageText, nextContentLink;
                             return __generator(this, function (_b) {
                                 switch (_b.label) {
@@ -332,11 +269,11 @@ var SuduGu = /** @class */ (function () {
                                 }
                             });
                         };
-                        this_5 = this;
+                        this_1 = this;
                         _a.label = 1;
                     case 1:
                         if (!hasMoreContent) return [3 /*break*/, 3];
-                        return [5 /*yield**/, _loop_5()];
+                        return [5 /*yield**/, _loop_1()];
                     case 2:
                         _a.sent();
                         return [3 /*break*/, 1];
