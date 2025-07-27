@@ -179,28 +179,25 @@ var SuduGu = /** @class */ (function () {
                                             allChapterLis.push($(el));
                                         });
 
-                                        // 自动获取最大页码
+                                        // ---- 自动检测最大分页数 ----
                                         maxPageNum = 1;
-                                        optionNums = [];
                                         $('#pages option').each(function(_, el){
                                             var val = $(el).val();
-                                            var m = val && val.match(/^(\d+)$/);
-                                            if (m) optionNums.push(parseInt(m[1]));
+                                            // 第一页通常是 'index-41'，后续直接数字
+                                            var num = 0;
+                                            if (val && /^\d+$/.test(val)) {
+                                                num = parseInt(val);
+                                                if (num > maxPageNum) maxPageNum = num;
+                                            }
                                         });
-                                        if (optionNums.length) {
-                                            maxPageNum = Math.max.apply(null, optionNums);
-                                        } else {
-                                            // 或者a链接
-                                            $('#pages a').each(function(_, el){
-                                                var href = $(el).attr('href');
-                                                var m = href && href.match(/p-(\d+)\.html/);
-                                                if (m) {
-                                                    var n = parseInt(m[1]);
-                                                    if (n > maxPageNum) maxPageNum = n;
-                                                }
-                                            });
-                                        }
-
+                                        $('#pages a').each(function(_, el){
+                                            var href = $(el).attr('href');
+                                            var m = href && href.match(/p-(\d+)\.html/);
+                                            if (m) {
+                                                var n = parseInt(m[1]);
+                                                if (n > maxPageNum) maxPageNum = n;
+                                            }
+                                        });
                                         // 依次抓分页目录
                                         if (maxPageNum > 1) {
                                             for (i = 2; i <= maxPageNum; i++) {
