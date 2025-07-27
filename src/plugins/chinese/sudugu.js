@@ -70,7 +70,7 @@ var SuduGu = /** @class */ (function () {
         this.name = '速读谷';
         this.icon = 'src/cn/sudugu/icon.png';
         this.site = 'https://www.sudugu.com';
-        this.version = '0.2.5';
+        this.version = '0.2.6';
         this.filters = {
             category: {
                 label: '分类',
@@ -98,6 +98,7 @@ var SuduGu = /** @class */ (function () {
             },
         };
     }
+
     SuduGu.prototype.popularNovels = function (pageNo, _a) {
         return __awaiter(this, arguments, void 0, function (pageNo, _b) {
             var url, body, $, novels;
@@ -109,14 +110,10 @@ var SuduGu = /** @class */ (function () {
                         url = showLatestNovels
                             ? "".concat(this.site, "/zuixin/").concat(pageNo, ".html")
                             : "".concat(this.site, "/").concat(filters.category.value || 'wanjie', "/").concat(pageNo, ".html");
-                        console.log('Fetching popular novels:', url);
                         return [4 /*yield*/, (0, fetch_1.fetchText)(url, this.fetchOptions)];
                     case 1:
                         body = _c.sent();
-                        if (!body) {
-                            console.error('Failed to fetch popular novels, empty response for:', url);
-                            throw Error('无法获取小说列表，请检查网络');
-                        }
+                        if (!body) throw Error('无法获取小说列表，请检查网络');
                         $ = (0, cheerio_1.load)(body);
                         novels = [];
                         $('.item').each(function (_, el) {
@@ -125,89 +122,155 @@ var SuduGu = /** @class */ (function () {
                                 var novelCover = $(el).find('a img').attr('src');
                                 novelCover = novelCover && !novelCover.startsWith('http') ? _this.site + novelCover : novelCover;
                                 var path = $(el).find('a').first().attr('href');
-                                if (!novelName || !path) {
-                                    console.warn('Skipping invalid novel:', { name: novelName, path: path });
-                                    return;
-                                }
+                                if (!novelName || !path) return;
                                 path = path.startsWith('http') ? path.replace(_this.site, '') : path;
                                 novels.push({
                                     name: novelName,
                                     cover: novelCover,
                                     path: path,
                                 });
-                            } catch (e) {
-                                console.error('Error parsing novel item:', e);
-                            }
+                            } catch (e) { }
                         });
-                        console.log('Found novels:', novels.length);
                         return [2 /*return*/, novels];
                 }
             });
         });
     };
+
+    // ------------ 修正：多页目录抓取 -------------
     SuduGu.prototype.parseNovel = function (novelPath) {
         return __awaiter(this, void 0, void 0, function () {
-            var url, body, $, novel, chapters;
             var _this = this;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
-                        url = this.site + novelPath;
-                        console.log('Fetching novel:', url);
-                        return [4 /*yield*/, (0, fetch_1.fetchText)(url, this.fetchOptions)];
-                    case 1:
-                        body = _a.sent();
-                        if (!body) {
-                            console.error('Failed to fetch novel, empty response for:', url);
-                            throw Error('无法获取小说内容，请检查网络');
-                        }
-                        $ = (0, cheerio_1.load)(body);
-                        novel = {
-                            path: novelPath,
-                            chapters: [],
-                            name: $('.itemtxt h1 a').text().trim() || '未知标题',
-                            cover: $('.item a img').attr('src') ? _this.site + $('.item a img').attr('src') : undefined,
-                            summary: $('.des.bb p').map(function (_, el) { return $(el).text().trim(); }).get().join('\n') || '暂无简介',
-                            author: $('.itemtxt p').eq(1).find('a').text().trim() || $('.itemtxt p').eq(1).text().replace('作者：', '').trim() || '未知作者',
-                            artist: undefined,
-                            status: $('.itemtxt p').eq(0).text().includes('连载') ? novelStatus_1.NovelStatus.Ongoing : novelStatus_1.NovelStatus.Completed,
-                            genres: $('.itemtxt p').eq(0).find('span').eq(1).text().trim() || '未知分类',
-                        };
-                        chapters = [];
-                        $('#list ul li').each(function (_, el) {
-                            try {
-                                var chapterName = $(el).find('a').text().trim();
-                                var chapterUrl = $(el).find('a').attr('href');
-                                if (!chapterUrl || !chapterName) {
-                                    console.warn('Skipping invalid chapter:', chapterName);
-                                    return;
+                        // 抓取所有分页目录
+                        return [2 /*return*/, (function () { return __awaiter(_this, void 0, void 0, function () {
+                            var baseUrl, url, body, $, novel, coverUrl, summary, author, statusText, genres, chapters, totalPages, allChapterLis, pageUrls, i, pageBody, page$, lis;
+                            return __generator(this, function (_a) {
+                                switch (_a.label) {
+                                    case 0:
+                                        baseUrl = this.site + novelPath.split('#')[0].replace(/\/$/, '');
+                                        url = baseUrl;
+                                        return [4 /*yield*/, (0, fetch_1.fetchText)(url, this.fetchOptions)];
+                                    case 1:
+                                        body = _a.sent();
+                                        if (!body) throw Error('无法获取小说内容，请检查网络');
+                                        $ = (0, cheerio_1.load)(body);
+
+                                        // 兼容cover地址
+                                        coverUrl = $('.item a img').attr('src') || $('.item img').attr('src');
+                                        coverUrl = coverUrl ? (coverUrl.startsWith('http') ? coverUrl : this.site + coverUrl) : undefined;
+
+                                        // 兼容多种简介写法，抓取所有 .des.bb 下的内容
+                                        summary = $('.des.bb').first().find('p').map(function (_, el) { return $(el).text().trim(); }).get().join('\n');
+                                        if (!summary) summary = $('.des.bb').first().text().trim();
+                                        if (!summary) summary = '暂无简介';
+
+                                        // 兼容作者
+                                        author = $('.itemtxt p').eq(1).find('a').text().trim() ||
+                                                 $('.itemtxt p').eq(1).text().replace('作者：', '').trim() ||
+                                                 $('.itemtxt p').filter(function(_, el){ return $(el).text().indexOf('作者') > -1; }).text().replace('作者：', '').trim() ||
+                                                 '未知作者';
+
+                                        // 连载/完结状态
+                                        statusText = $('.itemtxt p').eq(0).text();
+                                        genres = $('.itemtxt p').eq(0).find('span').eq(1).text().trim() ||
+                                                $('.itemtxt p').eq(0).find('span').last().text().trim() || '未知分类';
+                                        var status = /连载/.test(statusText) ? novelStatus_1.NovelStatus.Ongoing : novelStatus_1.NovelStatus.Completed;
+
+                                        chapters = [];
+                                        allChapterLis = [];
+                                        // 1. 抓取第一页目录的<li>
+                                        $('#list ul li').each(function (_, el) {
+                                            allChapterLis.push($(el));
+                                        });
+
+                                        // 2. 判断是否有目录分页
+                                        totalPages = 1;
+                                        pageUrls = [];
+                                        var $pages = $('#pages a, #pages option');
+                                        if ($pages.length) {
+                                            // 通过option页数（如select分页），或者通过a链接判断最大页数
+                                            $pages.each(function (_, el) {
+                                                var href = $(el).attr('href') || $(el).val();
+                                                // 只收集有效分页
+                                                if (href && !pageUrls.includes(href) && (href.indexOf('p-') > -1 || href.indexOf('index-') > -1 || href.match(/^\d+$/))) {
+                                                    // 构造完整url
+                                                    var link = href.startsWith('http') ? href : (href.match(/^\d+$/) ? baseUrl + '/p-' + href + '.html#dir' : baseUrl + '/' + href);
+                                                    if (!pageUrls.includes(link)) pageUrls.push(link);
+                                                }
+                                            });
+                                            totalPages = Math.max(pageUrls.length + 1, 2); // 页数为option+第一页
+                                        }
+
+                                        // 3. 遍历其他分页目录
+                                        if (pageUrls.length) {
+                                            for (i = 0; i < pageUrls.length; i++) {
+                                                var pageUrl = pageUrls[i];
+                                                try {
+                                                    // 修正可能的相对路径
+                                                    if (!/^https?:\/\//.test(pageUrl)) {
+                                                        if (pageUrl.startsWith('/')) pageUrl = this.site + pageUrl;
+                                                        else pageUrl = baseUrl + '/' + pageUrl;
+                                                    }
+                                                    pageBody = (await (0, fetch_1.fetchText)(pageUrl, this.fetchOptions));
+                                                    page$ = (0, cheerio_1.load)(pageBody);
+                                                    lis = page$('#list ul li');
+                                                    lis.each(function (_, el) { allChapterLis.push(page$(el)); });
+                                                } catch (e) {
+                                                    // 忽略失败
+                                                }
+                                            }
+                                        }
+                                        // 4. 合成章节数组
+                                        allChapterLis.forEach(function (li) {
+                                            try {
+                                                var chapterName = li.find('a').text().trim();
+                                                var chapterUrl = li.find('a').attr('href');
+                                                if (!chapterUrl || !chapterName) return;
+                                                // 清洗章节名
+                                                chapterName = chapterName
+                                                    .replace(/••/g, '')
+                                                    .replace(/[【〔〖［『「《]\d+[】〕〗］』」》]/g, '')
+                                                    .replace(/[\(\{（｛【〔［].*?(求含理更谢乐发推票盟补加字Kk\/).*/, '')
+                                                    .replace(/[\[\(\（【〔［『「《｛{].*$/, '')
+                                                    .replace(/[。]/g, '')
+                                                    .trim();
+                                                // 合成完整url
+                                                if (!chapterUrl.startsWith('http')) chapterUrl = chapterUrl.startsWith('/') ? _this.site + chapterUrl : baseUrl + '/' + chapterUrl;
+                                                var relativeChapterUrl = chapterUrl.replace(_this.site, '');
+                                                if (!chapters.some(function (chap) { return chap.path === relativeChapterUrl; })) {
+                                                    chapters.push({
+                                                        name: chapterName,
+                                                        path: relativeChapterUrl,
+                                                    });
+                                                }
+                                            } catch (e) {}
+                                        });
+
+                                        novel = {
+                                            path: novelPath,
+                                            chapters: chapters,
+                                            name: $('.itemtxt h1 a').text().trim() ||
+                                                  $('.itemtxt h1').text().trim() ||
+                                                  $('title').text().trim().replace(/-.*$/, '') || '未知标题',
+                                            cover: coverUrl,
+                                            summary: summary,
+                                            author: author,
+                                            artist: undefined,
+                                            status: status,
+                                            genres: genres,
+                                        };
+                                        return [2 /*return*/, novel];
                                 }
-                                chapterName = chapterName
-                                    .replace(/••/g, '')
-                                    .replace(/[【〔〖［『「《]\d+[】〕〗］』」》]/g, '')
-                                    .replace(/[\(\{（｛【〔［].*?(求含理更谢乐发推票盟补加字Kk\/).*/, '')
-                                    .replace(/[\[\(\（【〔［『「《｛{].*$/, '')
-                                    .replace(/[。]/g, '')
-                                    .trim();
-                                if (!chapterUrl.startsWith('http')) chapterUrl = _this.site + chapterUrl;
-                                var relativeChapterUrl = chapterUrl.replace(_this.site, '');
-                                if (!chapters.some(function (chap) { return chap.path === relativeChapterUrl; })) {
-                                    chapters.push({
-                                        name: chapterName,
-                                        path: relativeChapterUrl,
-                                    });
-                                }
-                            } catch (e) {
-                                console.error('Error parsing chapter:', e);
-                            }
-                        });
-                        novel.chapters = chapters;
-                        console.log('Parsed chapters:', chapters.length);
-                        return [2 /*return*/, novel];
+                            });
+                        }); })()];
                 }
             });
         });
     };
+
     SuduGu.prototype.parseChapter = function (chapterPath) {
         return __awaiter(this, void 0, void 0, function () {
             var url, content, hasMoreContent, currentUrl, maxPages, pageCount, _loop_1, this_1;
@@ -216,7 +279,6 @@ var SuduGu = /** @class */ (function () {
                 switch (_a.label) {
                     case 0:
                         url = this.site + chapterPath;
-                        console.log('Fetching chapter:', url);
                         content = '';
                         hasMoreContent = true;
                         currentUrl = url;
@@ -228,21 +290,17 @@ var SuduGu = /** @class */ (function () {
                                 switch (_b.label) {
                                     case 0:
                                         if (pageCount >= maxPages) {
-                                            console.warn('Reached max chapter pages:', maxPages);
                                             hasMoreContent = false;
                                             return [2 /*return*/];
                                         }
-                                        console.log('Fetching chapter page:', currentUrl);
                                         return [4 /*yield*/, (0, fetch_1.fetchText)(currentUrl, this.fetchOptions)];
                                     case 1:
                                         body = _b.sent();
                                         if (!body) {
-                                            console.error('Failed to fetch chapter, empty response for:', currentUrl);
                                             hasMoreContent = false;
                                             return [2 /*return*/];
                                         }
                                         $ = (0, cheerio_1.load)(body);
-                                        console.log('Raw content length:', $('.con p').length, 'elements');
                                         pageText = $('.con p').length ? $('.con p') : $('.content p');
                                         pageText = pageText
                                             .map(function (_, el) { return $(el).text().trim(); })
@@ -250,16 +308,13 @@ var SuduGu = /** @class */ (function () {
                                             .filter(function (line) { return line !== ''; })
                                             .map(function (line) { return "<p>".concat(line, "</p>"); })
                                             .join('\n');
-                                        console.log('Filtered content length:', pageText.length);
                                         content += pageText ? pageText + '\n' : '';
                                         nextContentLink = $('a:contains("下一页")').attr('href');
-                                        console.log('Next content URL:', nextContentLink);
                                         if (nextContentLink && nextContentLink !== 'javascript:void(0);' && nextContentLink !== currentUrl) {
                                             try {
                                                 currentUrl = nextContentLink.startsWith('http') ? nextContentLink : _this.site + nextContentLink;
                                                 pageCount++;
                                             } catch (e) {
-                                                console.warn('Invalid next content link found:', nextContentLink, e);
                                                 hasMoreContent = false;
                                             }
                                         } else {
@@ -278,15 +333,12 @@ var SuduGu = /** @class */ (function () {
                         _a.sent();
                         return [3 /*break*/, 1];
                     case 3:
-                        if (!content) {
-                            console.warn('No content found for chapter:', chapterPath);
-                        }
-                        console.log('Final chapter content length:', content.length);
                         return [2 /*return*/, content || '<p>章节内容为空</p>'];
                 }
             });
         });
     };
+
     SuduGu.prototype.searchNovels = function (searchTerm, pageNo) {
         return __awaiter(this, void 0, void 0, function () {
             var searchUrl, body, $, novels;
@@ -294,19 +346,12 @@ var SuduGu = /** @class */ (function () {
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
-                        if (pageNo > 1) {
-                            console.log('Search only supports page 1');
-                            return [2 /*return*/, []];
-                        }
+                        if (pageNo > 1) return [2 /*return*/, []];
                         searchUrl = "".concat(this.site, "/i/sor.aspx?key=").concat(encodeURIComponent(searchTerm));
-                        console.log('Searching novels:', searchUrl);
                         return [4 /*yield*/, (0, fetch_1.fetchText)(searchUrl, this.fetchOptions)];
                     case 1:
                         body = _a.sent();
-                        if (!body) {
-                            console.error('Failed to fetch search results, empty response for:', searchUrl);
-                            throw Error('无法获取搜索结果，请检查网络');
-                        }
+                        if (!body) throw Error('无法获取搜索结果，请检查网络');
                         $ = (0, cheerio_1.load)(body);
                         novels = [];
                         $('.item').each(function (_, el) {
@@ -315,26 +360,21 @@ var SuduGu = /** @class */ (function () {
                                 var novelCover = $(el).find('a img').attr('src');
                                 novelCover = novelCover && !novelCover.startsWith('http') ? _this.site + novelCover : novelCover;
                                 var path = $(el).find('a').first().attr('href');
-                                if (!novelName || !path) {
-                                    console.warn('Skipping invalid search result:', { name: novelName, path: path });
-                                    return;
-                                }
+                                if (!novelName || !path) return;
                                 path = path.startsWith('http') ? path.replace(_this.site, '') : path;
                                 novels.push({
                                     name: novelName,
                                     cover: novelCover,
                                     path: path,
                                 });
-                            } catch (e) {
-                                console.error('Error parsing search result:', e);
-                            }
+                            } catch (e) { }
                         });
-                        console.log('Found search results:', novels.length);
                         return [2 /*return*/, novels];
                 }
             });
         });
     };
+
     return SuduGu;
 }());
 exports.default = new SuduGu();
