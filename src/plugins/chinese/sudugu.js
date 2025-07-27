@@ -69,7 +69,7 @@ var SuduGu = /** @class */ (function () {
         this.name = '速读谷';
         this.icon = 'src/cn/sudugu/icon.png';
         this.site = 'https://www.sudugu.com';
-        this.version = '0.2.8';
+        this.version = '0.2.9';
         this.filters = {
             category: {
                 label: '分类',
