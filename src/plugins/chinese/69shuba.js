@@ -271,4 +271,21 @@ var SixtyNineShuba = /** @class */ (function () {
             .replace(/[【〔〖［『「《]\d+[】〔〖［『「《]/g, "")
             .replace(/^(\d+)[.．、,，]*第/, "第")
             .replace(/^(正文|VIP章节|最新章节)?(\s+|_)?/, "")
-            .replace(/[\(\{（｛]()
+            .replace(/[\(\{（｛【〔［].*?(求含理更谢乐发推票盟补加字Kk\/).*/, "")
+            .replace(/^(\d+)[、．.，,]第.+章/, "第$1章")
+            .replace(/^(\d+)、\d+、/, "第$1章 ")
+            .replace(/^(\d+)、\d+/, "第$1章")
+            .replace(/^(第.+章)\s?\d+/, "$1")
+            .replace(/^(\d+)、/, "第$1章 ")
+            .replace(/^(第.+章)\s?第.+章/, "$1")
+            .replace(/第\s?(.+)\s?章/, "第$1章")
+            .replace(/.*(?:chapter|Chapter|section|Section|part|Part)\s*(\d+)\s*/, "第$1章 ")
+            .replace(/[\(\（【〔［『「《｛{].*$/, "")
+            .replace(/[\[。]/g, "")
+            .replace(/(章)([^\s]+)(\s·)/, "$1 $2$3")
+            .trim();
+    };
+
+    return SixtyNineShuba;
+}());
+exports.default = new SixtyNineShuba();
