@@ -69,7 +69,7 @@ var SuduGu = /** @class */ (function () {
         this.name = '速读谷';
         this.icon = 'src/cn/sudugu/icon.png';
         this.site = 'https://www.sudugu.com';
-        this.version = '0.3.0';
+        this.version = '0.3.1';
         this.filters = {
             category: {
                 label: '分类',
@@ -222,7 +222,6 @@ var SuduGu = /** @class */ (function () {
         });
     };
 
-
     SuduGu.prototype.parseChapter = function (chapterPath) {
         return __awaiter(this, void 0, void 0, function () {
             var url, content, hasMoreContent, currentUrl, maxPages, pageCount, _loop_1, this_1;
@@ -258,7 +257,8 @@ var SuduGu = /** @class */ (function () {
                                             .map(function (_, el) { return $(el).text().trim(); })
                                             .get()
                                             .filter(function (line) { return line !== ''; })
-                                            .map(function (line) { return "<p>".concat(line, "</p>"); })
+                                            // 【重点】加上中文缩进
+                                            .map(function (line) { return "<p>&emsp;&emsp;" + line + "</p>"; })
                                             .join('\n');
                                         content += pageText ? pageText + '\n' : '';
                                         nextContentLink = $('a:contains("下一页")').attr('href');
@@ -285,11 +285,13 @@ var SuduGu = /** @class */ (function () {
                         _a.sent();
                         return [3 /*break*/, 1];
                     case 3:
+                        // 这里默认每段以<p>开头，已经自动加缩进。若部分客户端不识别&emsp;，也可改为全角空格"\u3000\u3000"
                         return [2 /*return*/, content || '<p>章节内容为空</p>'];
                 }
             });
         });
     };
+
 
     SuduGu.prototype.searchNovels = function (searchTerm, pageNo) {
         return __awaiter(this, void 0, void 0, function () {
