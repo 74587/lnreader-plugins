@@ -41,7 +41,6 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
             op = body.call(thisArg, _);
         } catch (e) {
             op = [6, e];
-            console.error('Generator error:', e);
             y = 0;
         } finally { f = t = 0; }
         if (op[0] & 5) throw op[1];
@@ -70,7 +69,7 @@ var SuduGu = /** @class */ (function () {
         this.name = '速读谷';
         this.icon = 'src/cn/sudugu/icon.png';
         this.site = 'https://www.sudugu.com';
-        this.version = '0.2.6';
+        this.version = '0.2.8';
         this.filters = {
             category: {
                 label: '分类',
@@ -137,16 +136,14 @@ var SuduGu = /** @class */ (function () {
         });
     };
 
-    // ------------ 修正：多页目录抓取 -------------
     SuduGu.prototype.parseNovel = function (novelPath) {
         return __awaiter(this, void 0, void 0, function () {
             var _this = this;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
-                        // 抓取所有分页目录
                         return [2 /*return*/, (function () { return __awaiter(_this, void 0, void 0, function () {
-                            var baseUrl, url, body, $, novel, coverUrl, summary, author, statusText, genres, chapters, totalPages, allChapterLis, pageUrls, i, pageBody, page$, lis;
+                            var baseUrl, url, body, $, novel, coverUrl, summary, author, statusText, genres, chapters, allChapterLis, maxPageNum, optionNums, i, pageUrl, pageBody, page$, lis;
                             return __generator(this, function (_a) {
                                 switch (_a.label) {
                                     case 0:
@@ -158,78 +155,70 @@ var SuduGu = /** @class */ (function () {
                                         if (!body) throw Error('无法获取小说内容，请检查网络');
                                         $ = (0, cheerio_1.load)(body);
 
-                                        // 兼容cover地址
                                         coverUrl = $('.item a img').attr('src') || $('.item img').attr('src');
                                         coverUrl = coverUrl ? (coverUrl.startsWith('http') ? coverUrl : this.site + coverUrl) : undefined;
 
-                                        // 兼容多种简介写法，抓取所有 .des.bb 下的内容
                                         summary = $('.des.bb').first().find('p').map(function (_, el) { return $(el).text().trim(); }).get().join('\n');
                                         if (!summary) summary = $('.des.bb').first().text().trim();
                                         if (!summary) summary = '暂无简介';
 
-                                        // 兼容作者
                                         author = $('.itemtxt p').eq(1).find('a').text().trim() ||
-                                                 $('.itemtxt p').eq(1).text().replace('作者：', '').trim() ||
-                                                 $('.itemtxt p').filter(function(_, el){ return $(el).text().indexOf('作者') > -1; }).text().replace('作者：', '').trim() ||
-                                                 '未知作者';
+                                            $('.itemtxt p').eq(1).text().replace('作者：', '').trim() ||
+                                            $('.itemtxt p').filter(function(_, el){ return $(el).text().indexOf('作者') > -1; }).text().replace('作者：', '').trim() ||
+                                            '未知作者';
 
-                                        // 连载/完结状态
                                         statusText = $('.itemtxt p').eq(0).text();
                                         genres = $('.itemtxt p').eq(0).find('span').eq(1).text().trim() ||
-                                                $('.itemtxt p').eq(0).find('span').last().text().trim() || '未知分类';
+                                            $('.itemtxt p').eq(0).find('span').last().text().trim() || '未知分类';
                                         var status = /连载/.test(statusText) ? novelStatus_1.NovelStatus.Ongoing : novelStatus_1.NovelStatus.Completed;
 
                                         chapters = [];
                                         allChapterLis = [];
-                                        // 1. 抓取第一页目录的<li>
+                                        // 抓第一页目录
                                         $('#list ul li').each(function (_, el) {
                                             allChapterLis.push($(el));
                                         });
 
-                                        // 2. 判断是否有目录分页
-                                        totalPages = 1;
-                                        pageUrls = [];
-                                        var $pages = $('#pages a, #pages option');
-                                        if ($pages.length) {
-                                            // 通过option页数（如select分页），或者通过a链接判断最大页数
-                                            $pages.each(function (_, el) {
-                                                var href = $(el).attr('href') || $(el).val();
-                                                // 只收集有效分页
-                                                if (href && !pageUrls.includes(href) && (href.indexOf('p-') > -1 || href.indexOf('index-') > -1 || href.match(/^\d+$/))) {
-                                                    // 构造完整url
-                                                    var link = href.startsWith('http') ? href : (href.match(/^\d+$/) ? baseUrl + '/p-' + href + '.html#dir' : baseUrl + '/' + href);
-                                                    if (!pageUrls.includes(link)) pageUrls.push(link);
+                                        // 自动获取最大页码
+                                        maxPageNum = 1;
+                                        optionNums = [];
+                                        $('#pages option').each(function(_, el){
+                                            var val = $(el).val();
+                                            var m = val && val.match(/^(\d+)$/);
+                                            if (m) optionNums.push(parseInt(m[1]));
+                                        });
+                                        if (optionNums.length) {
+                                            maxPageNum = Math.max.apply(null, optionNums);
+                                        } else {
+                                            // 或者a链接
+                                            $('#pages a').each(function(_, el){
+                                                var href = $(el).attr('href');
+                                                var m = href && href.match(/p-(\d+)\.html/);
+                                                if (m) {
+                                                    var n = parseInt(m[1]);
+                                                    if (n > maxPageNum) maxPageNum = n;
                                                 }
                                             });
-                                            totalPages = Math.max(pageUrls.length + 1, 2); // 页数为option+第一页
                                         }
 
-                                        // 3. 遍历其他分页目录
-                                        if (pageUrls.length) {
-                                            for (i = 0; i < pageUrls.length; i++) {
-                                                var pageUrl = pageUrls[i];
+                                        // 依次抓分页目录
+                                        if (maxPageNum > 1) {
+                                            for (i = 2; i <= maxPageNum; i++) {
+                                                pageUrl = baseUrl + '/p-' + i + '.html#dir';
                                                 try {
-                                                    // 修正可能的相对路径
-                                                    if (!/^https?:\/\//.test(pageUrl)) {
-                                                        if (pageUrl.startsWith('/')) pageUrl = this.site + pageUrl;
-                                                        else pageUrl = baseUrl + '/' + pageUrl;
-                                                    }
                                                     pageBody = (await (0, fetch_1.fetchText)(pageUrl, this.fetchOptions));
                                                     page$ = (0, cheerio_1.load)(pageBody);
                                                     lis = page$('#list ul li');
                                                     lis.each(function (_, el) { allChapterLis.push(page$(el)); });
-                                                } catch (e) {
-                                                    // 忽略失败
-                                                }
+                                                } catch (e) { }
                                             }
                                         }
-                                        // 4. 合成章节数组
+
                                         allChapterLis.forEach(function (li) {
                                             try {
                                                 var chapterName = li.find('a').text().trim();
                                                 var chapterUrl = li.find('a').attr('href');
                                                 if (!chapterUrl || !chapterName) return;
-                                                // 清洗章节名
                                                 chapterName = chapterName
                                                     .replace(/••/g, '')
                                                     .replace(/[【〔〖［『「《]\d+[】〕〗］』」》]/g, '')
@@ -237,7 +226,6 @@ var SuduGu = /** @class */ (function () {
                                                     .replace(/[\[\(\（【〔［『「《｛{].*$/, '')
                                                     .replace(/[。]/g, '')
                                                     .trim();
-                                                // 合成完整url
                                                 if (!chapterUrl.startsWith('http')) chapterUrl = chapterUrl.startsWith('/') ? _this.site + chapterUrl : baseUrl + '/' + chapterUrl;
                                                 var relativeChapterUrl = chapterUrl.replace(_this.site, '');
                                                 if (!chapters.some(function (chap) { return chap.path === relativeChapterUrl; })) {
@@ -253,8 +241,8 @@ var SuduGu = /** @class */ (function () {
                                             path: novelPath,
                                             chapters: chapters,
                                             name: $('.itemtxt h1 a').text().trim() ||
-                                                  $('.itemtxt h1').text().trim() ||
-                                                  $('title').text().trim().replace(/-.*$/, '') || '未知标题',
+                                                $('.itemtxt h1').text().trim() ||
+                                                $('title').text().trim().replace(/-.*$/, '') || '未知标题',
                                             cover: coverUrl,
                                             summary: summary,
                                             author: author,
