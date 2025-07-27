@@ -53,11 +53,26 @@ var fetch_1 = require("@libs/fetch");
 var filterInputs_1 = require("@libs/filterInputs");
 var novelStatus_1 = require("@libs/novelStatus");
 
-var SixtyNineShu = /** @class */ (function () {
-    function SixtyNineShu() {
+// 动态 UA 随机生成器（部分 cf/防盗可用）
+function randomUa() {
+    var r = function (a, b) { return Math.floor(Math.random() * (b - a) + a); };
+    var x = function (l) { var s = ""; for (var i = 0; i < l; i++) s += r(0, 10); return s; };
+    var v = r(500, 700) + "." + x(2);
+    return "Mozilla/5.0 (Linux; Android " + r(7, 15) + "; wv) AppleWebKit/" + v +
+        " (KHTML, like Gecko) Chrome/" + r(76, 125) + ".0." + x(4) + "." + x(2) +
+        " Mobile Safari/" + v;
+}
+
+var SixtyNineShuba = /** @class */ (function () {
+    function SixtyNineShuba() {
+        this.id = '69shuba';
+        this.name = '69主站';
+        this.icon = 'src/cn/69shuba/icon.png';
+        this.site = 'https://69shuba.cx';
+        this.version = '1.0.0';
         this.fetchOptions = {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 14; M2102K1AC) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.5414.118 Mobile Safari/537.36',
+                'User-Agent': randomUa(),
                 'Referer': 'https://69shuba.cx/',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
                 'Accept-Language': 'zh-CN,zh;q=0.9'
@@ -65,11 +80,7 @@ var SixtyNineShu = /** @class */ (function () {
             credentials: 'include',
             timeout: 30000
         };
-        this.id = '69shuba';
-        this.name = '69主站';
-        this.icon = 'src/cn/69shuba/icon.png';
-        this.site = 'https://69shuba.cx';
-        this.version = '1.0.0';
+        // 分类筛选（发现）
         this.filters = {
             category: {
                 label: '分类',
@@ -81,14 +92,14 @@ var SixtyNineShu = /** @class */ (function () {
                     { label: '人气榜', value: 'blist/monthvisit_0_0_{{page}}.htm' },
                     { label: '连载', value: 'blist/monthvisit_0_2_{{page}}.htm' },
                     { label: '全本', value: 'blist/monthvisit_0_1_{{page}}.htm' },
-                    { label: '推荐', value: 'blist/allvote_0_0_{{page}}.htm' },
+                    { label: '推荐', value: 'blist/allvote_0_0_{{page}}.htm' }
                 ],
                 type: filterInputs_1.FilterTypes.Picker,
             },
         };
     }
 
-    SixtyNineShu.prototype.popularNovels = function (pageNo, _a) {
+    SixtyNineShuba.prototype.popularNovels = function (pageNo, _a) {
         return __awaiter(this, arguments, void 0, function (pageNo, _b) {
             var url, body, $, novels;
             var _this = this;
@@ -130,7 +141,7 @@ var SixtyNineShu = /** @class */ (function () {
         });
     };
 
-    SixtyNineShu.prototype.searchNovels = function (searchTerm, pageNo) {
+    SixtyNineShuba.prototype.searchNovels = function (searchTerm, pageNo) {
         return __awaiter(this, void 0, void 0, function () {
             var searchUrl, postData, body, $, novels;
             var _this = this;
@@ -166,7 +177,7 @@ var SixtyNineShu = /** @class */ (function () {
         });
     };
 
-    SixtyNineShu.prototype.parseNovel = function (novelPath) {
+    SixtyNineShuba.prototype.parseNovel = function (novelPath) {
         return __awaiter(this, void 0, void 0, function () {
             var url, body, $, coverUrl, summary, author, statusText, genres, status, chapters, tocPath, tocUrl, tocBody, $$, chapterSet, items;
             var _this = this;
@@ -224,67 +235,40 @@ var SixtyNineShu = /** @class */ (function () {
         });
     };
 
-    SixtyNineShu.prototype.parseChapter = function (chapterPath) {
+    SixtyNineShuba.prototype.parseChapter = function (chapterPath) {
         return __awaiter(this, void 0, void 0, function () {
-            var url, content, hasMoreContent, currentUrl, maxPages, pageCount, body, $, pageText, nextContentLink;
+            var url, body, $, content;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
                         url = this.site + chapterPath;
-                        content = "";
-                        hasMoreContent = true, currentUrl = url, maxPages = 100, pageCount = 0;
-                        _a.label = 1;
+                        return [4 /*yield*/, (0, fetch_1.fetchText)(url, this.fetchOptions)];
                     case 1:
-                        if (!(hasMoreContent && pageCount < maxPages)) return [3 /*break*/, 3];
-                        return [4 /*yield*/, (0, fetch_1.fetchText)(currentUrl, this.fetchOptions)];
-                    case 2:
                         body = _a.sent();
-                        if (!body) return [3 /*break*/, 3];
+                        if (!body) return [2 /*return*/, "<p>章节内容为空</p>"];
                         $ = (0, cheerio_1.load)(body);
-                        pageText =
-                            $(".content,.contxt,.txtnav").html() ||
-                                $(".content").text() ||
-                                $(".contxt").text() || "";
-                        pageText = pageText
+                        content =
+                            $(".txtnav").html() ||
+                            $(".content").html() ||
+                            $(".contxt").html() ||
+                            $(".content").text() ||
+                            $(".contxt").text() ||
+                            "";
+                        content = content
                             .replace(/<h1[\s\S]+?<\/h1>|^<\s*[a-z]+.*?>|<\/[a-z]+>$|(?<!^)<div[\s\S]*?<\/div>\s*/g, "")
-                            .replace(/\s*\(本章完\)\s*$|第.*章.*/g, "");
-                        content += pageText + "\n";
-                        nextContentLink = $('a:contains("下一页")').attr("href");
-                        if (nextContentLink && nextContentLink !== "javascript:void(0);") {
-                            currentUrl = nextContentLink.startsWith("http") ? nextContentLink : this.site + nextContentLink;
-                            pageCount++;
-                        } else {
-                            hasMoreContent = false;
-                        }
-                        return [3 /*break*/, 1];
-                    case 3:
+                            .replace(/\s*\(本章完\)\s*$/g, "")
+                            .replace(/第.*章.*/g, "");
                         return [2 /*return*/, content || "<p>章节内容为空</p>"];
                 }
             });
         });
     };
 
-    SixtyNineShu.prototype.cleanChapterName = function (name) {
+    // 章节名净化
+    SixtyNineShuba.prototype.cleanChapterName = function (name) {
         return name
             .replace(/••/g, "")
             .replace(/[【〔〖［『「《]\d+[】〔〖［『「《]/g, "")
             .replace(/^(\d+)[.．、,，]*第/, "第")
             .replace(/^(正文|VIP章节|最新章节)?(\s+|_)?/, "")
-            .replace(/[\(\{（｛【〔［].*?(求含理更谢乐发推票盟补加字Kk\/).*/, "")
-            .replace(/^(\d+)[、．.，,]第.+章/, "第$1章")
-            .replace(/^(\d+)、\d+、/, "第$1章 ")
-            .replace(/^(\d+)、\d+/, "第$1章")
-            .replace(/^(第.+章)\s?\d+/, "$1")
-            .replace(/^(\d+)、/, "第$1章 ")
-            .replace(/^(第.+章)\s?第.+章/, "$1")
-            .replace(/第\s?(.+)\s?章/, "第$1章")
-            .replace(/.*(?:chapter|Chapter|section|Section|part|Part)\s*(\d+)\s*/, "第$1章 ")
-            .replace(/[\(\（【〔［『「《｛{].*$/, "")
-            .replace(/[\[。]/g, "")
-            .replace(/(章)([^\s]+)(\s·)/, "$1 $2$3")
-            .trim();
-    };
-
-    return SixtyNineShu;
-}());
-exports.default = new SixtyNineShu();
+            .replace(/[\(\{（｛]()
