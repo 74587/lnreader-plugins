@@ -70,7 +70,7 @@ var SuduGu = /** @class */ (function () {
         this.name = '速读谷';
         this.icon = 'src/cn/sudugu/icon.png';
         this.site = 'https://www.sudugu.com';
-        this.version = '0.2.6';
+        this.version = '0.2.7';
         this.filters = {
             category: {
                 label: '分类',
@@ -147,21 +147,18 @@ var SuduGu = /** @class */ (function () {
     };
     SuduGu.prototype.parseNovel = function (novelPath) {
         return __awaiter(this, void 0, void 0, function () {
-            var url, body, $, novel, chapters, currentPageUrl, hasMorePages, pageCount, maxPages, _loop_4, this_4;
+            var baseUrl, chapters, novel, currentPageUrl, hasMorePages, pageCount, maxPages, _loop_4, this_4;
             var _this = this;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
-                        url = this.site + novelPath;
-                        console.log('Fetching novel:', url);
-                        return [4 /*yield*/, (0, fetch_1.fetchText)(url, this.fetchOptions)];
+                        baseUrl = novelPath.endsWith('/#dir') ? novelPath : "".concat(novelPath, "/#dir");
+                        baseUrl = baseUrl.startsWith('http') ? baseUrl : "".concat(this.site, baseUrl);
+                        console.log('Fetching novel base URL:', baseUrl);
+                        chapters = [];
+                        return [4 /*yield*/, (0, fetch_1.fetchText)(baseUrl, this.fetchOptions)];
                     case 1:
-                        body = _a.sent();
-                        if (!body) {
-                            console.error('Failed to fetch novel, empty response for:', url);
-                            throw Error('无法获取小说内容，请检查网络');
-                        }
-                        $ = (0, cheerio_1.load)(body);
+                        _a.sent();
                         novel = {
                             path: novelPath,
                             chapters: [],
@@ -174,13 +171,12 @@ var SuduGu = /** @class */ (function () {
                             genres: $('.itemtxt p').eq(0).find('span').eq(1).text().trim() || '未知分类',
                         };
                         console.log('Novel summary:', novel.summary);
-                        chapters = [];
-                        currentPageUrl = url;
+                        currentPageUrl = baseUrl;
                         hasMorePages = true;
                         pageCount = 0;
                         maxPages = 100;
                         _loop_4 = function () {
-                            var pageBody, $page, pageChapters, nextPageLink;
+                            var pageBody, $page, pageChapters, nextPageLink, novelId, nextPageNum;
                             return __generator(this, function (_b) {
                                 switch (_b.label) {
                                     case 0:
@@ -205,7 +201,7 @@ var SuduGu = /** @class */ (function () {
                                                 var chapterName = $page(el).find('a').text().trim();
                                                 var chapterUrl = $page(el).find('a').attr('href');
                                                 if (!chapterUrl || !chapterName) {
-                                                    console.warn('Skipping invalid chapter:', chapterName);
+                                                    console.warn('Skipping invalid chapter:', { name: chapterName, url: chapterUrl });
                                                     return;
                                                 }
                                                 chapterName = chapterName
@@ -214,6 +210,9 @@ var SuduGu = /** @class */ (function () {
                                                     .replace(/[\(\{（｛【〔［].*?(求含理更谢乐发推票盟补加字Kk\/).*/, '')
                                                     .replace(/[\[\(\（【〔［『「《｛{].*$/, '')
                                                     .replace(/[。]/g, '')
+                                                    .replace(/请假.*/, '')
+                                                    .replace(/感言.*/, '')
+                                                    .replace(/总结.*/, '')
                                                     .trim();
                                                 if (!chapterUrl.startsWith('http')) chapterUrl = _this.site + chapterUrl;
                                                 var relativeChapterUrl = chapterUrl.replace(_this.site, '');
@@ -227,13 +226,23 @@ var SuduGu = /** @class */ (function () {
                                                 console.error('Error parsing chapter:', e);
                                             }
                                         });
-                                        console.log('Parsed chapters from page:', pageChapters.length);
+                                        console.log('Parsed chapters from page', currentPageUrl, ':', pageChapters.length);
                                         chapters = chapters.concat(pageChapters);
                                         nextPageLink = $page('.pages a:contains("下一页")').attr('href');
                                         console.log('Next page link:', nextPageLink);
                                         if (nextPageLink && nextPageLink !== 'javascript:void(0);' && nextPageLink !== currentPageUrl) {
                                             try {
-                                                currentPageUrl = nextPageLink.startsWith('http') ? nextPageLink : _this.site + nextPageLink;
+                                                if (nextPageLink.startsWith('http')) {
+                                                    currentPageUrl = nextPageLink;
+                                                } else {
+                                                    novelId = novelPath.match(/\/(\d+)\/?/)[1];
+                                                    if (nextPageLink.match(/p-\d+\.html#dir/)) {
+                                                        currentPageUrl = "".concat(_this.site, "/").concat(novelId, "/").concat(nextPageLink);
+                                                    } else {
+                                                        nextPageNum = pageCount + 2;
+                                                        currentPageUrl = "".concat(_this.site, "/").concat(novelId, "/p-").concat(nextPageNum, ".html#dir");
+                                                    }
+                                                }
                                                 pageCount++;
                                             } catch (e) {
                                                 console.warn('Invalid next page link found:', nextPageLink, e);
@@ -255,8 +264,8 @@ var SuduGu = /** @class */ (function () {
                         _a.sent();
                         return [3 /*break*/, 2];
                     case 4:
-                        novel.chapters = chapters;
-                        console.log('Total parsed chapters:', chapters.length);
+                        novel.chapters = chapters.filter(function (chap) { return chap.name && !chap.name.includes('请假') && !chap.name.includes('感言') && !chap.name.includes('总结'); });
+                        console.log('Total parsed chapters:', novel.chapters.length);
                         return [2 /*return*/, novel];
                 }
             });
