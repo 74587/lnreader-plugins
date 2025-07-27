@@ -70,7 +70,7 @@ var SuduGu = /** @class */ (function () {
         this.name = '速读谷';
         this.icon = 'src/cn/sudugu/icon.png';
         this.site = 'https://www.sudugu.com';
-        this.version = '0.2.5';
+        this.version = '0.2.6';
         this.filters = {
             category: {
                 label: '分类',
@@ -147,7 +147,7 @@ var SuduGu = /** @class */ (function () {
     };
     SuduGu.prototype.parseNovel = function (novelPath) {
         return __awaiter(this, void 0, void 0, function () {
-            var url, body, $, novel, chapters, currentPageUrl, hasMorePages, pageCount, maxPages, _loop_2, this_2;
+            var url, body, $, novel, chapters, currentPageUrl, hasMorePages, pageCount, maxPages, _loop_4, this_4;
             var _this = this;
             return __generator(this, function (_a) {
                 switch (_a.label) {
@@ -173,12 +173,13 @@ var SuduGu = /** @class */ (function () {
                             status: $('.itemtxt p').eq(0).text().includes('连载') ? novelStatus_1.NovelStatus.Ongoing : novelStatus_1.NovelStatus.Completed,
                             genres: $('.itemtxt p').eq(0).find('span').eq(1).text().trim() || '未知分类',
                         };
+                        console.log('Novel summary:', novel.summary);
                         chapters = [];
                         currentPageUrl = url;
                         hasMorePages = true;
                         pageCount = 0;
                         maxPages = 100;
-                        _loop_2 = function () {
+                        _loop_4 = function () {
                             var pageBody, $page, pageChapters, nextPageLink;
                             return __generator(this, function (_b) {
                                 switch (_b.label) {
@@ -226,6 +227,7 @@ var SuduGu = /** @class */ (function () {
                                                 console.error('Error parsing chapter:', e);
                                             }
                                         });
+                                        console.log('Parsed chapters from page:', pageChapters.length);
                                         chapters = chapters.concat(pageChapters);
                                         nextPageLink = $page('.pages a:contains("下一页")').attr('href');
                                         console.log('Next page link:', nextPageLink);
@@ -244,17 +246,17 @@ var SuduGu = /** @class */ (function () {
                                 }
                             });
                         };
-                        this_2 = this;
+                        this_4 = this;
                         _a.label = 2;
                     case 2:
                         if (!hasMorePages) return [3 /*break*/, 4];
-                        return [5 /*yield**/, _loop_2()];
+                        return [5 /*yield**/, _loop_4()];
                     case 3:
                         _a.sent();
                         return [3 /*break*/, 2];
                     case 4:
                         novel.chapters = chapters;
-                        console.log('Parsed chapters:', chapters.length);
+                        console.log('Total parsed chapters:', chapters.length);
                         return [2 /*return*/, novel];
                 }
             });
@@ -262,7 +264,7 @@ var SuduGu = /** @class */ (function () {
     };
     SuduGu.prototype.parseChapter = function (chapterPath) {
         return __awaiter(this, void 0, void 0, function () {
-            var url, content, hasMoreContent, currentUrl, maxPages, pageCount, _loop_3, this_3;
+            var url, content, hasMoreContent, currentUrl, maxPages, pageCount, _loop_5, this_5;
             var _this = this;
             return __generator(this, function (_a) {
                 switch (_a.label) {
@@ -274,7 +276,7 @@ var SuduGu = /** @class */ (function () {
                         currentUrl = url;
                         maxPages = 100;
                         pageCount = 0;
-                        _loop_3 = function () {
+                        _loop_5 = function () {
                             var body, $, pageText, nextContentLink;
                             return __generator(this, function (_b) {
                                 switch (_b.label) {
@@ -321,11 +323,11 @@ var SuduGu = /** @class */ (function () {
                                 }
                             });
                         };
-                        this_3 = this;
+                        this_5 = this;
                         _a.label = 1;
                     case 1:
                         if (!hasMoreContent) return [3 /*break*/, 3];
-                        return [5 /*yield**/, _loop_3()];
+                        return [5 /*yield**/, _loop_5()];
                     case 2:
                         _a.sent();
                         return [3 /*break*/, 1];
