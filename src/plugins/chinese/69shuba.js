@@ -69,7 +69,7 @@ var SixtyNineShu = /** @class */ (function () {
         this.name = '69主站';
         this.icon = 'src/cn/69shuba/icon.png';
         this.site = 'https://69shuba.cx';
-        this.version = '0.0.1';
+        this.version = '1.0.0';
         this.filters = {
             category: {
                 label: '分类',
